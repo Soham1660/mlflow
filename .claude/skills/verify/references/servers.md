@@ -1,20 +1,7 @@
-# Checkouts and servers
+# Servers
 
-## Base checkout
-
-For a baseline comparison, create a separate checkout of the base:
-
-```bash
-git -C "$pr_checkout" worktree add --detach "$tmp_dir/checkouts/base" HEAD^1
-```
-
-Keep the base and PR runs from contaminating each other:
-
-- Install dependencies separately in each checkout. Don't symlink `node_modules` across them.
-- Give each checkout its own data and log paths, and never clear a checkout to reset data.
-- Confirm which source, module, or build path each process actually loaded. A base server that
-  imports the PR's code proves nothing.
-- Run the base and PR servers one after the other, and stop one before starting the next.
+When comparing against the base, run the base and PR servers one after the other, and stop one
+before starting the next.
 
 ## Backend server
 

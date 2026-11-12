@@ -76,15 +76,30 @@ they should see, what setup it needs, and whether you need the base behavior to 
 - **Tests are diagnostics, not verification.** Run them if they help you understand a failure,
   but behavior you only saw pass in a test is unverified.
 
+## Compare against the base
+
+For a baseline comparison, create a separate checkout of the base:
+
+```bash
+git -C "$pr_checkout" worktree add --detach "$tmp_dir/checkouts/base" HEAD^1
+```
+
+Keep the base and PR runs from contaminating each other:
+
+- Install dependencies separately in each checkout. Don't symlink `node_modules` across them.
+- Give each checkout its own data and log paths, and never clear a checkout to reset data.
+- Confirm which source, module, or build path each process actually loaded. A base run that
+  imports the PR's code proves nothing.
+
 ## Run the checks
 
 Run every planned check and look at the results it returns, not just that the request routed or
 the page loaded.
 
-Before a check that needs a base checkout, a server, or a browser, read the matching reference
-in `$trusted_checkout/.claude/skills/verify/references/`:
+Before a check that needs a server or a browser, read the matching reference in
+`$trusted_checkout/.claude/skills/verify/references/`:
 
-- `servers.md`: base checkout, backend and frontend servers, readiness.
+- `servers.md`: backend and frontend servers, readiness.
 - `browser.md`: `agent-browser` sessions, screenshots, and recordings.
 
 When setup or a mock fails, fix it and retry. Report a gap only after recovery attempts fail,
