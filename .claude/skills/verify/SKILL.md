@@ -124,9 +124,6 @@ Take each comment's `side` and `line` from the diff's line labels, not by counti
 "$trusted_checkout/.claude/scripts/number-diff.sh" < "$tmp_dir/in/pr.diff"
 ```
 
-`L<n>` means `side: LEFT, line: n` and `R<n>` means `side: RIGHT, line: n`. Deleted lines carry only
-an `L` label and added lines only an `R` label; unchanged lines carry both, so use the `R` one.
-
 Then validate the payload and fix any errors it reports:
 
 ```bash
