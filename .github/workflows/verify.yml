@@ -292,11 +292,9 @@ jobs:
           echo "::stop-commands::$token"
           timeout --kill-after=10s 60m setsid bash -o pipefail -c '
             echo "$$" > "$RUNNER_TEMP/verify-agent.pgid"
-            printf -v skill_inputs "\"%s\" \"%s\" \"%s\" \"%s\" \"%s\"" \
+            printf -v skill_inputs "\"%s\" \"%s\" \"%s\"" \
               "$GITHUB_WORKSPACE/trusted" \
               "$GITHUB_WORKSPACE/pr" \
-              "$VERIFY_TMP_DIR/in/pr_context.json" \
-              "$VERIFY_TMP_DIR/in/pr.diff" \
               "$VERIFY_TMP_DIR"
             claude \
               --model "$MODEL" \
