@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Verify a pull request's behavior and prepare a review payload.
+description: Confirm a pull request does what it claims and prepare a review payload.
 disable-model-invocation: true
 argument-hint: "<trusted_checkout> <pr_checkout> <tmp_dir>"
 arguments: [trusted_checkout, pr_checkout, tmp_dir]
