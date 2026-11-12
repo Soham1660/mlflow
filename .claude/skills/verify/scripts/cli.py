@@ -12,27 +12,9 @@ from typing import Any
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SKILLS_DIR = SKILL_DIR.parent
 SCHEMA = SKILL_DIR / "payload.schema.yml"
-TRUSTED_BOTS = {"copilot-swe-agent", "mlflow-app"}
+TRUSTED_BOTS = {"Copilot", "mlflow-app[bot]"}
+PR_CONTEXT = SKILLS_DIR.parent / "scripts" / "pr_context.py"
 VALIDATE_REVIEW = SKILLS_DIR.parent / "scripts" / "validate_review.py"
-
-PR_QUERY = """
-query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) {
-      title body state headRefOid
-      author { login __typename }
-      reviewThreads(last: 50) {
-        nodes {
-          path line originalLine diffSide isResolved isOutdated
-          comments(last: 25) {
-            nodes { author { login } body createdAt url }
-          }
-        }
-      }
-    }
-  }
-}
-"""
 
 
 def command(*args: str | Path, input: str | None = None) -> str:
@@ -64,23 +46,13 @@ def collect(args: argparse.Namespace) -> int:
     if not re.fullmatch(r"/verify\s*", args.comment, re.ASCII):
         sys.stdout.write("Not a /verify command.\n")
         return 0
-    owner, name = args.repo.split("/")
-    response = api(
-        "graphql",
-        "-f",
-        f"owner={owner}",
-        "-f",
-        f"name={name}",
-        "-F",
-        f"number={args.pr_number}",
-        "-f",
-        f"query={PR_QUERY}",
+    context = json.loads(
+        command(sys.executable, PR_CONTEXT, "--repo", args.repo, "--pr-number", args.pr_number)
     )
-    pr = response["data"]["repository"]["pullRequest"]
-    if pr["state"] != "OPEN":
+    if context["state"] != "open":
         raise ValueError("PR is not open")
-    author = pr["author"] or {}
-    match author.get("__typename"):
+    author = context["author"]
+    match author["type"]:
         case "User":
             permission = api(f"repos/{args.repo}/collaborators/{author['login']}/permission")
             if permission["permission"] not in {"admin", "write"}:
@@ -91,17 +63,9 @@ def collect(args: argparse.Namespace) -> int:
         case _:
             write_step_summary("The PR author is not trusted.")
             return 0
-    head = pr["headRefOid"]
+    head = context["head"]["sha"]
     if not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("Unexpected PR head SHA")
-    context = {
-        "title": pr["title"],
-        "body": pr["body"],
-        "review_threads": [
-            thread | {"comments": thread["comments"]["nodes"]}
-            for thread in pr["reviewThreads"]["nodes"]
-        ],
-    }
     args.out_path.write_text(json.dumps(context, indent=2) + "\n")
     write_step_outputs(head=head, allowed="true")
     return 0

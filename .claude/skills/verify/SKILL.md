@@ -44,8 +44,9 @@ the PR's base/head merge. Use `git -C "$pr_checkout" ...` for Git commands and
 `cd "$pr_checkout" && ...` for repository commands.
 
 Read `$pr_context`, `$diff`, and `$trusted_checkout/.claude/skills/verify/payload.schema.yml`.
-`$pr_context` contains the title, body, and review threads. Derive changed file paths from the diff.
-Verify prior feedback, checking thread resolution/outdated status.
+`$pr_context` contains the title, body, and a chronological `timeline` of comments and reviews,
+with each inline thread under the review that started it. Derive changed file paths from the diff.
+Verify prior feedback, checking each thread's `resolved` and `outdated` status.
 Use `gh` to read linked issues, pull requests, and Actions runs/logs as needed; its token is read-only.
 
 `$diff` uses GitHub's PR comparison; the checkout contains the merge result for runtime checks.
