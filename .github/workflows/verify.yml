@@ -360,7 +360,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: read
     # Keep absolute media references from the verification payload valid on this runner.
     env:
       VERIFY_TMP_DIR: /tmp/verify
@@ -392,11 +392,21 @@ jobs:
         run: |
           uv run --no-project python .claude/skills/verify/scripts/cli.py embed \
             --payload "$VERIFY_TMP_DIR/out/payload.json" --media-dir "$VERIFY_TMP_DIR/out/media"
+      # The review is posted as the review app; a preview only reads the PR.
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app-token
+        if: always() && (github.event_name != 'workflow_dispatch' || !inputs.dry_run)
+        with:
+          client-id: ${{ secrets.REVIEW_CLIENT_ID }}
+          private-key: ${{ secrets.REVIEW_PRIVATE_KEY }}
+          owner: mlflow
+          repositories: mlflow
+          permission-pull-requests: write
       # Runs even when verification failed, so it relies on the runner's Python rather than uv.
       - name: Publish or preview review
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
           HEAD_SHA: ${{ needs.gate.outputs.head }}
