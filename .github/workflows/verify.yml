@@ -157,14 +157,13 @@ jobs:
             echo '::error::PR head changed before checkout; run /verify again.'
             exit 1
           fi
-          gh pr diff "$PR_NUMBER" --repo "$REPO" > "$VERIFY_TMP_DIR/in/diff.raw"
+          gh pr diff "$PR_NUMBER" --repo "$REPO" \
+            | "$GITHUB_WORKSPACE/trusted/.claude/scripts/mask-diff.sh" > "$VERIFY_TMP_DIR/in/pr.diff"
           pr=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
           if ! jq -e --arg head "$HEAD_SHA" '.head.sha == $head' <<< "$pr" > /dev/null; then
             echo '::error::PR head changed while fetching the diff; run /verify again.'
             exit 1
           fi
-          uv run --quiet --directory "$GITHUB_WORKSPACE/trusted/.claude/skills" --package skills skills annotate-diff \
-            < "$VERIFY_TMP_DIR/in/diff.raw" > "$VERIFY_TMP_DIR/in/diff.annotated"
       - name: Install agent tools
         run: |
           trusted/.claude/scripts/install-claude.sh
@@ -291,12 +290,11 @@ jobs:
           echo "::stop-commands::$token"
           timeout --kill-after=10s 60m setsid bash -o pipefail -c '
             echo "$$" > "$RUNNER_TEMP/verify-agent.pgid"
-            printf -v skill_inputs "\"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"" \
+            printf -v skill_inputs "\"%s\" \"%s\" \"%s\" \"%s\" \"%s\"" \
               "$GITHUB_WORKSPACE/trusted" \
               "$GITHUB_WORKSPACE/pr" \
               "$VERIFY_TMP_DIR/in/pr_context.json" \
-              "$VERIFY_TMP_DIR/in/diff.raw" \
-              "$VERIFY_TMP_DIR/in/diff.annotated" \
+              "$VERIFY_TMP_DIR/in/pr.diff" \
               "$VERIFY_TMP_DIR"
             claude \
               --model "$MODEL" \
@@ -335,7 +333,7 @@ jobs:
         run: |
           uv run --no-project python "$GITHUB_WORKSPACE/trusted/.claude/skills/verify/scripts/cli.py" validate \
             --payload "$VERIFY_TMP_DIR/out/payload.json" --media-dir "$VERIFY_TMP_DIR/out/media" \
-            --diff "$VERIFY_TMP_DIR/in/diff.raw"
+            --diff "$VERIFY_TMP_DIR/in/pr.diff"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verify-out-${{ github.run_id }}

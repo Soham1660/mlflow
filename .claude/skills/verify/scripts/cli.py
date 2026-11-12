@@ -1,5 +1,4 @@
 import argparse
-import ast
 import html
 import json
 import os
@@ -8,14 +7,13 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SKILLS_DIR = SKILL_DIR.parent
 SCHEMA = SKILL_DIR / "payload.schema.yml"
 TRUSTED_BOTS = {"copilot-swe-agent", "mlflow-app"}
-HUNK_HEADER = re.compile(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-Side = Literal["LEFT", "RIGHT"]
+VALIDATE_REVIEW = SKILLS_DIR.parent / "scripts" / "validate_review.py"
 
 PR_QUERY = """
 query($owner: String!, $name: String!, $number: Int!) {
@@ -109,55 +107,6 @@ def collect(args: argparse.Namespace) -> int:
     return 0
 
 
-def diff_path(header: str) -> str:
-    path = header[4:].split("\t", 1)[0]
-    if path.startswith('"'):
-        path = ast.literal_eval(path)
-    return path[2:]
-
-
-def diff_hunks(diff: str) -> dict[str, list[dict[tuple[Side, int], int]]]:
-    files: dict[str, list[dict[tuple[Side, int], int]]] = {}
-    path = ""
-    hunk: dict[tuple[Side, int], int] | None = None
-    old = new = 0
-    for position, line in enumerate(diff.splitlines()):
-        if line.startswith("diff --git "):
-            path = ""
-            hunk = None
-        elif hunk is None and line.startswith(("--- ", "+++ ")):
-            if line[4:].split("\t", 1)[0] != "/dev/null":
-                path = diff_path(line)
-        elif match := HUNK_HEADER.match(line):
-            old, new = map(int, match.groups())
-            hunk = {}
-            files.setdefault(path, []).append(hunk)
-        elif hunk is not None:
-            if line.startswith((" ", "-")):
-                hunk["LEFT", old] = position
-                old += 1
-            if line.startswith((" ", "+")):
-                hunk["RIGHT", new] = position
-                new += 1
-    return files
-
-
-def validate_comments(payload: dict[str, Any], diff: str) -> list[str]:
-    files = diff_hunks(diff)
-    errors = []
-    for index, comment in enumerate(payload["comments"], start=1):
-        positions = [(comment["side"], comment["line"])]
-        if "start_line" in comment:
-            positions.insert(0, (comment["start_side"], comment["start_line"]))
-        if not any(
-            all(position in hunk for position in positions)
-            and (len(positions) == 1 or hunk[positions[0]] < hunk[positions[-1]])
-            for hunk in files.get(comment["path"], [])
-        ):
-            errors.append(f"Comment {index}: position or ordered range is not within one diff hunk")
-    return errors
-
-
 def media_command(media_dir: Path) -> tuple[str | Path, ...]:
     return (
         "uv",
@@ -175,12 +124,18 @@ def media_command(media_dir: Path) -> tuple[str | Path, ...]:
 
 
 def validate(args: argparse.Namespace) -> int:
-    command("uvx", "check-jsonschema@0.37.4", "--schemafile", SCHEMA, args.payload_path)
-    payload = json.loads(args.payload_path.read_text())
     # The diff stays on the verification runner, so the publisher skips the position check.
-    if args.diff_path is not None:
-        if errors := validate_comments(payload, args.diff_path.read_text()):
-            raise ValueError("\n".join(errors))
+    diff_args = () if args.diff_path is None else ("--diff", args.diff_path)
+    command(
+        sys.executable,
+        VALIDATE_REVIEW,
+        "--schema",
+        SCHEMA,
+        "--payload",
+        args.payload_path,
+        *diff_args,
+    )
+    payload = json.loads(args.payload_path.read_text())
     command(
         *media_command(args.media_dir),
         "--check",

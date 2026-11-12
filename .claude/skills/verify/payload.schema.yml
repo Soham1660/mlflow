@@ -118,3 +118,14 @@ $defs:
         - start_side
       start_side:
         - start_line
+    # A range cannot start on the new side and end on the old side.
+    if:
+      required:
+        - start_side
+      properties:
+        start_side:
+          const: RIGHT
+    then:
+      properties:
+        side:
+          const: RIGHT

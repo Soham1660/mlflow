@@ -2,8 +2,8 @@
 name: verify
 description: Verify a pull request's behavior and prepare a review payload.
 disable-model-invocation: true
-argument-hint: "<trusted_checkout> <pr_checkout> <pr_context> <raw_diff> <annotated_diff> <tmp_dir>"
-arguments: [trusted_checkout, pr_checkout, pr_context, raw_diff, annotated_diff, tmp_dir]
+argument-hint: "<trusted_checkout> <pr_checkout> <pr_context> <diff> <tmp_dir>"
+arguments: [trusted_checkout, pr_checkout, pr_context, diff, tmp_dir]
 hooks:
   PreToolUse:
     - matcher: Bash
@@ -26,8 +26,7 @@ $GITHUB_WORKSPACE/
 $tmp_dir/
 ├── in/
 │   ├── pr_context.json         # pr_context
-│   ├── diff.raw                # raw_diff
-│   └── diff.annotated          # annotated_diff
+│   └── pr.diff                 # diff
 ├── out/
 │   ├── payload.json            # Review payload to produce
 │   └── media/                  # Screenshots and recordings
@@ -44,13 +43,13 @@ You're running in `$trusted_checkout`; stay rooted there without `/cd`. `$pr_che
 the PR's base/head merge. Use `git -C "$pr_checkout" ...` for Git commands and
 `cd "$pr_checkout" && ...` for repository commands.
 
-Read `$pr_context`, `$annotated_diff`, and `$trusted_checkout/.claude/skills/verify/payload.schema.yml`.
+Read `$pr_context`, `$diff`, and `$trusted_checkout/.claude/skills/verify/payload.schema.yml`.
 `$pr_context` contains the title, body, and review threads. Derive changed file paths from the diff.
 Verify prior feedback, checking thread resolution/outdated status.
 Use `gh` to read linked issues, pull requests, and Actions runs/logs as needed; its token is read-only.
 
-The annotated diff uses GitHub's PR comparison; the checkout contains the merge result for runtime checks.
-`$annotated_diff` masks generated/deleted files; consult `$raw_diff` for those.
+`$diff` uses GitHub's PR comparison; the checkout contains the merge result for runtime checks.
+It omits the hunks of generated files; read those files in `$pr_checkout` if you need them.
 
 ## Plan checks
 
@@ -179,7 +178,14 @@ verification gaps; omit evidence-only comments and existing thread findings, eve
 Include each problem's trigger, expected/actual behavior, and consequence; skip speculation and
 minor code-level issues.
 
-Use PR diff coordinates: `LEFT` for deleted lines and `RIGHT` for added or context lines.
+Take each comment's `side` and `line` from the diff's line labels, not by counting:
+
+```bash
+"$trusted_checkout/.claude/scripts/number-diff.sh" < "$diff"
+```
+
+`L<n>` means `side: LEFT, line: n` and `R<n>` means `side: RIGHT, line: n`. Deleted lines carry only
+an `L` label and added lines only an `R` label; unchanged lines carry both, so use the `R` one.
 
 ## Validate the payload
 
@@ -187,5 +193,5 @@ Validate the payload and fix errors:
 
 ```bash
 uv run --no-project python "$trusted_checkout/.claude/skills/verify/scripts/cli.py" validate \
-  --payload "$tmp_dir/out/payload.json" --media-dir "$tmp_dir/out/media" --diff "$raw_diff"
+  --payload "$tmp_dir/out/payload.json" --media-dir "$tmp_dir/out/media" --diff "$diff"
 ```
