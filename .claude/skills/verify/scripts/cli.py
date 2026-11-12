@@ -124,7 +124,8 @@ def embed(args: argparse.Namespace) -> int:
 
 def publish(args: argparse.Namespace) -> int:
     endpoint = f"repos/{args.repo}/pulls/{args.pr_number}"
-    if api(endpoint)["state"] != "open":
+    pr = api(endpoint)
+    if pr["state"] != "open":
         write_step_summary("PR closed; no review will be posted.")
         return 0
     notice = f"> [Verification run]({args.run_url})."
@@ -143,15 +144,24 @@ def publish(args: argparse.Namespace) -> int:
             "event": "COMMENT",
             "body": f"{notice}\n\nVerification did not complete. See the workflow run for details.",
         }
+    # An approval enables auto-merge unless someone has yet to review the PR.
+    auto_merge = (
+        review["event"] == "APPROVE"
+        and not pr["draft"]
+        and not pr["requested_reviewers"]
+        and not pr["requested_teams"]
+    )
     if args.dry_run:
         preview = html.escape(json.dumps(review, indent=2, ensure_ascii=False))
         write_step_summary(
             "### Verification preview\n"
             "No review or media was published. Local media paths are not GitHub links.\n"
-            f"<pre>{preview}</pre>"
+            f"<pre>{preview}</pre>\n\n"
+            f"Auto-merge would {'be enabled' if auto_merge else 'not be enabled'}."
         )
     else:
         sys.stdout.write(api(f"{endpoint}/reviews", data=review)["html_url"] + "\n")
+        write_step_outputs(auto_merge=str(auto_merge).lower())
     return 0
 
 

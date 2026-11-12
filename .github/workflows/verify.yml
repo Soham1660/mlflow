@@ -404,6 +404,7 @@ jobs:
           permission-pull-requests: write
       # Runs even when verification failed, so it relies on the runner's Python rather than uv.
       - name: Publish or preview review
+        id: publish
         if: always()
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
@@ -422,3 +423,25 @@ jobs:
             args+=(--no-dry-run)
           fi
           python3 .claude/skills/verify/scripts/cli.py publish "${args[@]}"
+      # Enabling auto-merge needs write access to contents, which the review app lacks.
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: merge-token
+        if: steps.publish.outputs.auto_merge == 'true'
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: mlflow
+          repositories: mlflow
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Enable auto-merge
+        if: steps.publish.outputs.auto_merge == 'true'
+        env:
+          GH_TOKEN: ${{ steps.merge-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
+          HEAD_SHA: ${{ needs.gate.outputs.head }}
+        run: |
+          # Skip if the head moved since verification.
+          gh pr merge "$PR_NUMBER" --repo "$REPO" --auto --squash --match-head-commit "$HEAD_SHA"
+          gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label auto-repair
