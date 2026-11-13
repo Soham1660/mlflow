@@ -1,6 +1,6 @@
 # Preview a branch: gh workflow run verify.yml --ref <branch> -F pr_number=<number>
 # Add -F dry_run=false to publish the review on the specified PR.
-name: Verify PR behavior
+name: Verify
 
 on:
   issue_comment:
