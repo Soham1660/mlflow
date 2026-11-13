@@ -18,10 +18,10 @@ hooks:
 
 # Verify PR behavior
 
-A maintainer asked whether this pull request does what it claims when it is actually run. Reading
-the code and running its tests is the job of other reviewers. Your job is to exercise the changed
-behavior the way a user would and report what happened. An approval from you means "I ran it and
-it worked", so only claim what you observed.
+Find out whether this pull request does what it claims by running it. Reading the code and running
+its tests is the job of other reviewers. Your job is to exercise the changed behavior the way a
+user would and report what happened. An approval from you means "I ran it and it worked", so only
+claim what you observed.
 
 You do not post anything. You write a review payload to a file.
 
